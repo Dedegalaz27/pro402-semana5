@@ -8,31 +8,48 @@
   <!-- React 18 UMD -->
   <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-  <!-- Babel for in-browser JSX transform -->
+  <!-- Babel para transformar JSX en el navegador -->
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    /* Fondo tipo neón/circuito */
+    body::before{
+      content:"";
+      position:fixed; inset:0;
+      background-image:url("https://images.unsplash.com/photo-1557683316-973673baf926?q=80&w=1920&auto=format&fit=crop");
+      background-size:cover; background-position:center;
+      filter:saturate(1.2) brightness(0.65) blur(2px);
+      z-index:-2;
+    }
+    body::after{
+      content:"";
+      position:fixed; inset:0;
+      background:
+        radial-gradient(60% 60% at 20% 10%, rgba(135,206,250,0.20), transparent 60%),
+        radial-gradient(50% 50% at 80% 80%, rgba(186,85,211,0.20), transparent 60%);
+      z-index:-1; pointer-events:none;
+    }
+  </style>
 </head>
-<body class="min-h-screen w-full bg-gray-50 text-gray-900">
+<body class="min-h-screen w-full text-gray-50">
   <div id="root"></div>
 
   <script type="text/babel">
-    const { useState, useMemo } = React;
+    const {useState, useMemo, useEffect} = React;
 
+    /* ---------- utilidades ---------- */
     function Badge({ ok=false, text }) {
       return (
-        <span className={
-          "px-3 py-1 rounded-xl text-sm font-medium " +
-          (ok ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700")
-        }>{text}</span>
+        <span className={"px-3 py-1 rounded-xl text-sm font-medium " + (ok ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800")}>
+          {text}
+        </span>
       );
     }
 
     function Card({ title, ok, hint }) {
       return (
-        <div className="bg-white rounded-2xl shadow p-4 flex items-center gap-3">
+        <div className="bg-white/80 backdrop-blur rounded-2xl shadow p-4 flex items-center gap-3 text-gray-900">
           <div className={"rounded-full p-2 " + (ok ? "bg-emerald-100" : "bg-rose-100")}>
-            <span className={"text-lg " + (ok ? "text-emerald-600" : "text-rose-600")}>
-              {ok ? "✔" : "✖"}
-            </span>
+            <span className={"text-lg " + (ok ? "text-emerald-600" : "text-rose-600")}>{ok ? "✔" : "✖"}</span>
           </div>
           <div>
             <div className="font-semibold">{title}</div>
@@ -45,7 +62,7 @@
     function Field({ label, children }) {
       return (
         <div>
-          <label className="block text-sm font-medium mb-1">{label}</label>
+          <label className="block text-sm font-medium mb-1 text-white/90">{label}</label>
           <div className="flex items-center gap-2">
             <div className="flex-1">{children}</div>
           </div>
@@ -54,20 +71,30 @@
     }
 
     function Help({ ok, msgOk, msgErr }) {
-      return (
-        <p className={"mt-1 text-sm " + (ok ? "text-emerald-600" : "text-rose-600")}>
-          {ok ? msgOk : msgErr}
-        </p>
-      );
+      return <p className={"mt-1 text-sm " + (ok ? "text-emerald-300" : "text-rose-300")}>{ok ? msgOk : msgErr}</p>;
     }
 
-    function App() {
-      const [text, setText] = useState("");
-      const [date, setDate] = useState("");
-      const [qty, setQty] = useState("");
-      const [submitted, setSubmitted] = useState(false);
+    /* ---------- almacenamiento ---------- */
+    const KEY = "pro402_records";
+    function useRecords(){
+      const [records, setRecords] = useState(() => {
+        try { const raw = localStorage.getItem(KEY); return raw ? JSON.parse(raw) : []; }
+        catch { return []; }
+      });
+      useEffect(() => localStorage.setItem(KEY, JSON.stringify(records)), [records]);
+      return [records, setRecords];
+    }
 
-      const todayISO = useMemo(() => new Date().toISOString().slice(0, 10), []);
+    /* ---------- app ---------- */
+    function App(){
+      const [screen, setScreen] = useState("form");      // 'form' | 'list'
+      const [text, setText]   = useState("");
+      const [date, setDate]   = useState("");
+      const [qty, setQty]     = useState("");
+      const [submitted, setSubmitted] = useState(false);
+      const [records, setRecords]     = useRecords();
+
+      const todayISO = useMemo(() => new Date().toISOString().slice(0,10), []);
 
       // Validaciones
       const textIsAlpha = /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+$/.test(text || "");
@@ -75,123 +102,155 @@
       const textValid = textIsAlpha && textLen >= 6 && textLen <= 10;
 
       const dateValid = (() => {
-        if (!date) return false;
+        if(!date) return false;
         try {
           const d = new Date(date + "T00:00:00");
           const t = new Date(todayISO + "T00:00:00");
           return d.getTime() <= t.getTime();
-        } catch {
-          return false;
-        }
+        } catch { return false; }
       })();
 
-      const qtyNum = Number(qty);
+      const qtyNum   = Number(qty);
       const qtyValid = Number.isFinite(qtyNum) && qtyNum >= 0 && qtyNum <= 10;
 
       const formValid = textValid && dateValid && qtyValid;
 
-      function onSubmit(e) {
+      function onSubmit(e){
         e.preventDefault();
         setSubmitted(true);
-        if (formValid) {
-          alert("Datos enviados (simulado).");
+        if(formValid){
+          const item = { id: Date.now(), text, date, qty: qtyNum, createdAt: new Date().toISOString() };
+          setRecords(prev => [item, ...prev]);
+          setText(""); setDate(""); setQty("");
+          setSubmitted(false);
+          setScreen("list"); // después de guardar, ir a la pantalla de registros
         }
       }
 
+      function clearAll(){
+        if(confirm("¿Eliminar todos los registros?")) setRecords([]);
+      }
+
       return (
-        <div className="max-w-3xl mx-auto p-6 md:p-10">
+        <div className="relative max-w-4xl mx-auto p-6 md:p-10">
           <header className="mb-6">
-            <h1 className="text-3xl md:text-4xl font-bold tracking-tight">Aplicación de Validación – Semana 5</h1>
-            <p className="text-gray-600 mt-2">
-              Practique pruebas <span className="font-medium">caja negra</span>, <span className="font-medium">caja blanca</span>, 
-              <span className="font-medium"> regresión</span> y validaciones de <span className="font-medium">compatibilidad</span>.
-            </p>
+            <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight drop-shadow">Aplicación de Validación – Semana 5</h1>
+            <p className="text-white/90 mt-2">Practique pruebas <span className="font-semibold">caja negra</span>, <span className="font-semibold">caja blanca</span> y <span className="font-semibold">regresión</span>.</p>
           </header>
 
-          <div className="grid md:grid-cols-3 gap-4 mb-6">
-            <Card title="Estado de Texto" ok={textValid} hint="Alfabético, 6–10 caracteres" />
-            <Card title="Estado de Fecha" ok={dateValid} hint="Hoy o anterior" />
-            <Card title="Estado de Número" ok={qtyValid} hint="0–10" />
-          </div>
+          <nav className="flex items-center gap-3 mb-6">
+            <button onClick={() => setScreen("form")}
+              className={"px-4 py-2 rounded-xl font-medium " + (screen==="form" ? "bg-white/90 text-gray-900 shadow" : "bg-white/20 text-white hover:bg-white/30")}>
+              Formulario
+            </button>
+            <button onClick={() => setScreen("list")}
+              className={"px-4 py-2 rounded-xl font-medium " + (screen==="list" ? "bg-white/90 text-gray-900 shadow" : "bg-white/20 text-white hover:bg-white/30")}>
+              Registros
+            </button>
+            <div className="ml-auto text-sm text-white/80">Total: <span className="font-semibold">{records.length}</span></div>
+          </nav>
 
-          <form onSubmit={onSubmit} className="bg-white rounded-2xl shadow p-6 space-y-5">
-            <Field label="Texto alfabético (6–10)">
-              <input
-                value={text}
-                onChange={(e) => setText(e.target.value.trimStart())}
-                className={"w-full px-4 py-3 rounded-2xl outline-none border shadow-sm " + 
-                  ((!submitted || textValid) ? "border-emerald-300 focus:border-emerald-500" : "border-rose-300 focus:border-rose-500")
-                }
-                placeholder="Ej: Marisol"
-                aria-invalid={!textValid}
-              />
-              <Help
-                ok={textValid}
-                msgOk="Formato correcto"
-                msgErr={text.length ? (textIsAlpha ? `Largo actual: ${textLen}. Debe ser 6–10` : "Solo letras (sin espacios ni números)") : "Requerido"}
-              />
-            </Field>
+          {screen === "form" && (
+            <>
+              <div className="grid md:grid-cols-3 gap-4 mb-6">
+                <Card title="Estado de Texto" ok={textValid} hint="Alfabético, 6–10 caracteres" />
+                <Card title="Estado de Fecha" ok={dateValid} hint="Hoy o anterior" />
+                <Card title="Estado de Número" ok={qtyValid} hint="0–10" />
+              </div>
 
-            <Field label="Fecha (no futura)">
-              <input
-                type="date"
-                max={todayISO}
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className={"w-full px-4 py-3 rounded-2xl outline-none border shadow-sm " + 
-                  ((!submitted || dateValid) ? "border-emerald-300 focus:border-emerald-500" : "border-rose-300 focus:border-rose-500")
-                }
-                aria-invalid={!dateValid}
-              />
-              <Help ok={dateValid} msgOk="Fecha válida" msgErr={date ? "La fecha no puede ser futura" : "Requerido"} />
-            </Field>
+              <form onSubmit={onSubmit} className="bg-white/10 backdrop-blur rounded-2xl shadow p-6 space-y-5 border border-white/20">
+                <Field label="Texto alfabético (6–10)">
+                  <input
+                    value={text}
+                    onChange={(e)=>setText(e.target.value.trimStart())}
+                    className={"w-full px-4 py-3 rounded-2xl outline-none border shadow-sm text-gray-900 " + ((!submitted || textValid) ? "border-emerald-300 focus:border-emerald-500" : "border-rose-300 focus:border-rose-500")}
+                    placeholder="Ej: Marisol"
+                    aria-invalid={!textValid}
+                  />
+                  <Help ok={textValid} msgOk="Formato correcto" msgErr={text.length ? (textIsAlpha ? `Largo actual: ${textLen}. Debe ser 6–10` : "Solo letras (sin espacios ni números)") : "Requerido"} />
+                </Field>
 
-            <Field label="Número (0–10)">
-              <input
-                inputMode="numeric"
-                value={qty}
-                onChange={(e) => setQty(e.target.value.replace(/[^0-9.-]/g, ""))}
-                className={"w-full px-4 py-3 rounded-2xl outline-none border shadow-sm " + 
-                  ((!submitted || qtyValid) ? "border-emerald-300 focus:border-emerald-500" : "border-rose-300 focus:border-rose-500")
-                }
-                placeholder="Ej: 5"
-                aria-invalid={!qtyValid}
-              />
-              <Help ok={qtyValid} msgOk="En rango" msgErr={qty !== "" ? "Debe ser número entre 0 y 10" : "Requerido"} />
-            </Field>
+                <Field label="Fecha (no futura)">
+                  <input
+                    type="date" max={todayISO} value={date}
+                    onChange={(e)=>setDate(e.target.value)}
+                    className={"w-full px-4 py-3 rounded-2xl outline-none border shadow-sm text-gray-900 " + ((!submitted || dateValid) ? "border-emerald-300 focus:border-emerald-500" : "border-rose-300 focus:border-rose-500")}
+                    aria-invalid={!dateValid}
+                  />
+                  <Help ok={dateValid} msgOk="Fecha válida" msgErr={date ? "La fecha no puede ser futura" : "Requerido"} />
+                </Field>
 
-            <div className="flex items-center gap-3 pt-2">
-              <button
-                type="submit"
-                className={( "px-5 py-3 rounded-2xl font-medium shadow " + (formValid ? "bg-emerald-600 text-white" : "bg-gray-200 text-gray-500") )}
-              >
-                Validar y Enviar
-              </button>
-              {submitted && (
-                formValid ? <Badge ok text="Datos enviados (simulado)" /> : <Badge text="Revise los campos" />
+                <Field label="Número (0–10)">
+                  <input
+                    inputMode="numeric" value={qty}
+                    onChange={(e)=>setQty(e.target.value.replace(/[^0-9.-]/g, ""))}
+                    className={"w-full px-4 py-3 rounded-2xl outline-none border shadow-sm text-gray-900 " + ((!submitted || qtyValid) ? "border-emerald-300 focus:border-emerald-500" : "border-rose-300 focus:border-rose-500")}
+                    placeholder="Ej: 5"
+                    aria-invalid={!qtyValid}
+                  />
+                  <Help ok={qtyValid} msgOk="En rango" msgErr={qty !== "" ? "Debe ser número entre 0 y 10" : "Requerido"} />
+                </Field>
+
+                <div className="flex items-center gap-3 pt-2">
+                  <button
+                    type="submit"
+                    className={"px-5 py-3 rounded-2xl font-medium shadow " + (formValid ? "bg-emerald-500 text-white hover:bg-emerald-600" : "bg-white/40 text-white/80 cursor-not-allowed")}
+                    title={formValid ? "Enviar" : "Complete los campos válidos"}
+                  >
+                    Validar y Enviar
+                  </button>
+                  {submitted && (formValid ? <Badge ok text="Datos enviados (simulado)" /> : <Badge text="Revise los campos" />)}
+                </div>
+              </form>
+            </>
+          )}
+
+          {screen === "list" && (
+            <section className="bg-white/10 backdrop-blur rounded-2xl shadow p-6 border border-white/20">
+              <div className="flex items-center gap-3 mb-4">
+                <h2 className="text-xl font-semibold">Registros almacenados</h2>
+                <button onClick={clearAll} className="ml-auto text-xs px-3 py-1 rounded-lg bg-rose-500/80 hover:bg-rose-600 text-white">Borrar todo</button>
+              </div>
+
+              {records.length === 0 ? (
+                <p className="text-white/80">No hay registros aún. Vuelva al formulario para crear uno.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-sm text-left">
+                    <thead className="text-gray-900">
+                      <tr className="bg-white/80">
+                        <th className="px-3 py-2 rounded-l-lg">#</th>
+                        <th className="px-3 py-2">Texto</th>
+                        <th className="px-3 py-2">Fecha</th>
+                        <th className="px-3 py-2">Número</th>
+                        <th className="px-3 py-2 rounded-r-lg">Creado</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {records.map((r, i) => (
+                        <tr key={r.id} className="odd:bg-white/10 even:bg-white/5">
+                          <td className="px-3 py-2">{records.length - i}</td>
+                          <td className="px-3 py-2">{r.text}</td>
+                          <td className="px-3 py-2">{r.date}</td>
+                          <td className="px-3 py-2">{r.qty}</td>
+                          <td className="px-3 py-2">{new Date(r.createdAt).toLocaleString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
-            </div>
-          </form>
+            </section>
+          )}
 
-          <section className="mt-8 bg-white rounded-2xl shadow p-6">
-            <h2 className="text-xl font-semibold mb-3">Guía rápida de pruebas (manuales)</h2>
-            <ul className="list-disc pl-5 space-y-2 text-gray-700">
-              <li>Partición de equivalencias y valores borde: pruebe 5/6/10/11 caracteres; letras vs. letras+números.</li>
-              <li>Fecha: hoy (válida), mañana (inválida), ayer (válida).</li>
-              <li>Número: -1/11 (inválidos), 0/5/10 (válidos).</li>
-              <li>Regresión: cambie de válido→inválido→válido y confirme estados.</li>
-              <li>Compatibilidad: desktop/móvil; distintos anchos de ventana.</li>
-            </ul>
-          </section>
-
-          <footer className="text-xs text-gray-500 mt-10">
+          <footer className="text-xs text-white/70 mt-10">
             Versión demo para PRO402 – Taller de Testing y Calidad de Software · Semana 5
           </footer>
         </div>
       );
     }
 
-    const root = ReactDOM.createRoot(document.getElementById('root'));
+    const root = ReactDOM.createRoot(document.getElementById("root"));
     root.render(<App />);
   </script>
 </body>

@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Aplicación de Validación – Semana 5</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- React 18 UMD -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <!-- Babel for in-browser JSX transform -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="min-h-screen w-full bg-gray-50 text-gray-900">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useMemo } = React;
+
+    function Badge({ ok=false, text }) {
+      return (
+        <span className={
+          "px-3 py-1 rounded-xl text-sm font-medium " +
+          (ok ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700")
+        }>{text}</span>
+      );
+    }
+
+    function Card({ title, ok, hint }) {
+      return (
+        <div className="bg-white rounded-2xl shadow p-4 flex items-center gap-3">
+          <div className={"rounded-full p-2 " + (ok ? "bg-emerald-100" : "bg-rose-100")}>
+            <span className={"text-lg " + (ok ? "text-emerald-600" : "text-rose-600")}>
+              {ok ? "✔" : "✖"}
+            </span>
+          </div>
+          <div>
+            <div className="font-semibold">{title}</div>
+            {hint && <div className="text-xs text-gray-500">{hint}</div>}
+          </div>
+        </div>
+      );
+    }
+
+    function Field({ label, children }) {
+      return (
+        <div>
+          <label className="block text-sm font-medium mb-1">{label}</label>
+          <div className="flex items-center gap-2">
+            <div className="flex-1">{children}</div>
+          </div>
+        </div>
+      );
+    }
+
+    function Help({ ok, msgOk, msgErr }) {
+      return (
+        <p className={"mt-1 text-sm " + (ok ? "text-emerald-600" : "text-rose-600")}>
+          {ok ? msgOk : msgErr}
+        </p>
+      );
+    }
+
+    function App() {
+      const [text, setText] = useState("");
+      const [date, setDate] = useState("");
+      const [qty, setQty] = useState("");
+      const [submitted, setSubmitted] = useState(false);
+
+      const todayISO = useMemo(() => new Date().toISOString().slice(0, 10), []);
+
+      // Validaciones
+      const textIsAlpha = /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+$/.test(text || "");
+      const textLen = text.length;
+      const textValid = textIsAlpha && textLen >= 6 && textLen <= 10;
+
+      const dateValid = (() => {
+        if (!date) return false;
+        try {
+          const d = new Date(date + "T00:00:00");
+          const t = new Date(todayISO + "T00:00:00");
+          return d.getTime() <= t.getTime();
+        } catch {
+          return false;
+        }
+      })();
+
+      const qtyNum = Number(qty);
+      const qtyValid = Number.isFinite(qtyNum) && qtyNum >= 0 && qtyNum <= 10;
+
+      const formValid = textValid && dateValid && qtyValid;
+
+      function onSubmit(e) {
+        e.preventDefault();
+        setSubmitted(true);
+        if (formValid) {
+          alert("Datos enviados (simulado).");
+        }
+      }
+
+      return (
+        <div className="max-w-3xl mx-auto p-6 md:p-10">
+          <header className="mb-6">
+            <h1 className="text-3xl md:text-4xl font-bold tracking-tight">Aplicación de Validación – Semana 5</h1>
+            <p className="text-gray-600 mt-2">
+              Practique pruebas <span className="font-medium">caja negra</span>, <span className="font-medium">caja blanca</span>, 
+              <span className="font-medium"> regresión</span> y validaciones de <span className="font-medium">compatibilidad</span>.
+            </p>
+          </header>
+
+          <div className="grid md:grid-cols-3 gap-4 mb-6">
+            <Card title="Estado de Texto" ok={textValid} hint="Alfabético, 6–10 caracteres" />
+            <Card title="Estado de Fecha" ok={dateValid} hint="Hoy o anterior" />
+            <Card title="Estado de Número" ok={qtyValid} hint="0–10" />
+          </div>
+
+          <form onSubmit={onSubmit} className="bg-white rounded-2xl shadow p-6 space-y-5">
+            <Field label="Texto alfabético (6–10)">
+              <input
+                value={text}
+                onChange={(e) => setText(e.target.value.trimStart())}
+                className={"w-full px-4 py-3 rounded-2xl outline-none border shadow-sm " + 
+                  ((!submitted || textValid) ? "border-emerald-300 focus:border-emerald-500" : "border-rose-300 focus:border-rose-500")
+                }
+                placeholder="Ej: Marisol"
+                aria-invalid={!textValid}
+              />
+              <Help
+                ok={textValid}
+                msgOk="Formato correcto"
+                msgErr={text.length ? (textIsAlpha ? `Largo actual: ${textLen}. Debe ser 6–10` : "Solo letras (sin espacios ni números)") : "Requerido"}
+              />
+            </Field>
+
+            <Field label="Fecha (no futura)">
+              <input
+                type="date"
+                max={todayISO}
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className={"w-full px-4 py-3 rounded-2xl outline-none border shadow-sm " + 
+                  ((!submitted || dateValid) ? "border-emerald-300 focus:border-emerald-500" : "border-rose-300 focus:border-rose-500")
+                }
+                aria-invalid={!dateValid}
+              />
+              <Help ok={dateValid} msgOk="Fecha válida" msgErr={date ? "La fecha no puede ser futura" : "Requerido"} />
+            </Field>
+
+            <Field label="Número (0–10)">
+              <input
+                inputMode="numeric"
+                value={qty}
+                onChange={(e) => setQty(e.target.value.replace(/[^0-9.-]/g, ""))}
+                className={"w-full px-4 py-3 rounded-2xl outline-none border shadow-sm " + 
+                  ((!submitted || qtyValid) ? "border-emerald-300 focus:border-emerald-500" : "border-rose-300 focus:border-rose-500")
+                }
+                placeholder="Ej: 5"
+                aria-invalid={!qtyValid}
+              />
+              <Help ok={qtyValid} msgOk="En rango" msgErr={qty !== "" ? "Debe ser número entre 0 y 10" : "Requerido"} />
+            </Field>
+
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                type="submit"
+                className={( "px-5 py-3 rounded-2xl font-medium shadow " + (formValid ? "bg-emerald-600 text-white" : "bg-gray-200 text-gray-500") )}
+              >
+                Validar y Enviar
+              </button>
+              {submitted && (
+                formValid ? <Badge ok text="Datos enviados (simulado)" /> : <Badge text="Revise los campos" />
+              )}
+            </div>
+          </form>
+
+          <section className="mt-8 bg-white rounded-2xl shadow p-6">
+            <h2 className="text-xl font-semibold mb-3">Guía rápida de pruebas (manuales)</h2>
+            <ul className="list-disc pl-5 space-y-2 text-gray-700">
+              <li>Partición de equivalencias y valores borde: pruebe 5/6/10/11 caracteres; letras vs. letras+números.</li>
+              <li>Fecha: hoy (válida), mañana (inválida), ayer (válida).</li>
+              <li>Número: -1/11 (inválidos), 0/5/10 (válidos).</li>
+              <li>Regresión: cambie de válido→inválido→válido y confirme estados.</li>
+              <li>Compatibilidad: desktop/móvil; distintos anchos de ventana.</li>
+            </ul>
+          </section>
+
+          <footer className="text-xs text-gray-500 mt-10">
+            Versión demo para PRO402 – Taller de Testing y Calidad de Software · Semana 5
+          </footer>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
